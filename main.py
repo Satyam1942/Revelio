@@ -4,10 +4,13 @@ import concurrent.futures
 from flask import Flask, request, jsonify
 from flask import Response, stream_with_context
 from flask_cors import CORS
+from dotenv import load_dotenv
 
 from transcript_extractor import check_video_length, extract_video_id, get_video_transcript
 from summary_generator import process_transcript_claims
 from claim_checker import  fetch_ddg_context, run_ai_judge
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
@@ -56,7 +59,7 @@ def analyze_video():
     """
     data = request.get_json()
     video_url = data.get('video_url')
-    
+
     if not video_url:
         return jsonify({"status": "error", "message": "No video_url provided"}), 400
 
@@ -67,7 +70,6 @@ def analyze_video():
 
     def generate():
         try: 
-            
             yield f"data: {json.dumps({'step': 0, 'message': 'Verifying video length...'})}\n\n"
             video_length = check_video_length(video_url)
         
@@ -159,6 +161,3 @@ def analyze_video():
             return Response(status=500)
         
     return  Response(stream_with_context(generate()), mimetype='text/event-stream')
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
