@@ -72,7 +72,9 @@ def download_audio(video_url):
             'preferredcodec': 'm4a',
         }],
        'impersonate': ImpersonateTarget.from_str('chrome'),
-       'js_runtimes': 'deno',
+       'js_runtimes': {
+            'deno': {'path': None}   
+        },
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
