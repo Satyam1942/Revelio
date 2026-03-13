@@ -43,9 +43,7 @@ def check_video_length(video_id: str, api_key: str) -> int:
         print(f"Metadata extraction error: {e}")
         return -1
 
-def get_video_transcript(url: str) -> str:
-    video_id = extract_video_id(url)
-    
+def get_video_transcript(video_id: str) -> str:
     if not video_id:
         return "Error: Could not extract a valid Video ID from the provided URL."
 
@@ -54,7 +52,7 @@ def get_video_transcript(url: str) -> str:
         transcript_list = ytt_api.fetch(video_id)        
         formatter = TextFormatter()
         clean_text = formatter.format_transcript(transcript_list)
-        
+        print(clean_text)
         return clean_text
 
     except Exception as e:
