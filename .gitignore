@@ -1,2 +1,3 @@
 .env
 video_cache.jsonl
+__pycache__/
