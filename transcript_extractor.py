@@ -1,6 +1,9 @@
 import urllib.parse as urlparse
 import requests
 import re
+import isodate
+
+from googleapiclient.discovery import build
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
 
@@ -18,24 +21,23 @@ def extract_video_id(url: str) -> str:
             
     return None
 
-def check_video_length(url: str) -> int:
+def check_video_length(video_id: str, api_key: str) -> int:
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
-        }
+     
+        youtube = build("youtube", "v3", developerKey=api_key)
+        request = youtube.videos().list(
+            part="contentDetails",
+            id=video_id
+        )
+        response = request.execute()
+       
+        if not response['items']:
+            return -1
+
+        duration_iso = response['items'][0]['contentDetails']['duration']
+        duration_delta = isodate.parse_duration(duration_iso)
         
-        response = requests.get(url, headers=headers, timeout=5)
-        response.raise_for_status()
-        match = re.search(r'"lengthSeconds":"(\d+)"', response.text)
-        
-        if match:
-            length = int(match.group(1))
-            print(f"Video Length (Verified): {length} seconds")
-            return length
-            
-        print("Bouncer Warning: Could not find lengthSeconds in page source.")
-        return -1
+        return duration_delta.total_seconds()
     
     except Exception as e:
         print(f"Metadata extraction error: {e}")

@@ -64,23 +64,13 @@ def analyze_video():
         return jsonify({"status": "error", "message": "No video_url provided"}), 400
 
     gemini_key = os.environ.get("GEMINI_API_KEY")
+    youtube_key = os.environ.get("YOUTUBE_API_KEY")
     
-    if not gemini_key:
+    if not ( gemini_key or youtube_key ):
         return jsonify({"status": "error", "message": "Server missing API configurations."}), 500
 
     def generate():
         try: 
-            yield f"data: {json.dumps({'step': 0, 'message': 'Verifying video length...'})}\n\n"
-            video_length = check_video_length(video_url)
-        
-            if video_length > MAX_LENGTH:
-                yield f"data: {json.dumps({'status': 'error', 'message': f'Video is too long ({video_length // 60} mins). Please use a video under 15 minutes.'})}\n\n"
-                return 
-            elif video_length == -1:
-                yield f"data: {json.dumps({'status': 'error', 'message': 'Could not verify video length. Please check the URL.'})}\n\n"
-                return
-            
-            
             # Checking Cache if data is there 
             video_id = extract_video_id(video_url)
             if not video_id:
@@ -91,6 +81,15 @@ def analyze_video():
                 print(f"\n[CACHE HIT] ⚡ Returning from memory for video: {video_id}")
                 response_payload = memory_cache[video_id]
                 yield f"data: {json.dumps({'step': 5, 'message': 'Complete!', 'result': response_payload})}\n\n"
+                return
+  
+            yield f"data: {json.dumps({'step': 0, 'message': 'Verifying video length...'})}\n\n"
+            video_length = check_video_length(video_id, youtube_key)
+            if video_length > MAX_LENGTH:
+                yield f"data: {json.dumps({'status': 'error', 'message': f'Video is too long ({video_length // 60} mins). Please use a video under 15 minutes.'})}\n\n"
+                return 
+            elif video_length == -1:
+                yield f"data: {json.dumps({'status': 'error', 'message': 'Could not verify video length. Please check the URL.'})}\n\n"
                 return
             
             # [1/4] Fetching transcript for: {video_url} 
