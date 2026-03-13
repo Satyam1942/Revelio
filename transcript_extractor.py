@@ -60,10 +60,18 @@ def download_audio(video_url):
     ydl_opts = {
         'format': 'm4a/bestaudio/best',
         'outtmpl': f'{output_filename}.%(ext)s',
+        'extractor_args': {
+        'youtube': {
+            # Use 'web_safari' or 'android' clients which are less restricted
+            'player_client': ['web_safari', 'ios'], 
+            'skip': ['webpage', 'configs'],
+            }
+        },
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'm4a',
         }],
+        'impersonate': 'safari-13'
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([video_url])
