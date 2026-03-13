@@ -96,6 +96,7 @@ def analyze_video():
             yield f"data: {json.dumps({'step': 1, 'message': 'Fetching YouTube transcript...'})}\n\n"
             print('Fetching transcript...')
             transcript = get_video_transcript(video_id)
+            print(transcript)
             print('Transcript fetched!')
             
             if transcript.startswith("Error") or transcript.startswith("An error"):
