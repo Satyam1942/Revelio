@@ -47,7 +47,7 @@ export default function App() {
     setExecutionTime(null); 
 
     try {
-      const response = await fetch('https://revelio-yp6g.onrender.com/api/analyze-video', {
+      const response = await fetch('http://localhost:5000/api/analyze-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ video_url: url }),
