@@ -99,11 +99,14 @@ def analyze_video():
             print('Transcript fetched!')
             
             if transcript.startswith("Error") or transcript.startswith("An error"):
-                return jsonify({"status": "error", "message": "Transcript Extraction failed"}), 400
-                
+                yield f"data: {json.dumps({'status': 'error', 'message': 'Error fetching Transcript'})}\n\n" 
+                return Response(status=500)
+            
+            print('Extracting claims...')
             # "[2/4] Extracting and routing claims via Gemini..."
             yield f"data: {json.dumps({'step': 2, 'message': 'Extracting claims...'})}\n\n"
             extraction_data = process_transcript_claims(transcript, gemini_key)
+            print('Claims extracted!')
             
             if extraction_data.get("status") == "error":
                 yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
