@@ -7,7 +7,7 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
 from googleapiclient.discovery import build
-
+from yt_dlp.networking.impersonate import ImpersonateTarget
 
 
 class AudioAnalysisResponse(BaseModel):
@@ -71,16 +71,20 @@ def download_audio(video_url):
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'm4a',
         }],
-       'impersonate': 'safari-13',
+       'impersonate': ImpersonateTarget.from_str('chrome'),
+       'js_runtimes': 'deno',
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([video_url])
-        # The exact path on the server
-        final_path = f"{output_filename}.m4a"
-        
-        if os.path.exists(final_path):
-            return final_path
-        raise FileNotFoundError("Audio extraction failed—is FFmpeg installed?")
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
+            # The exact path on the server
+            final_path = f"{output_filename}.m4a"
+            
+            if os.path.exists(final_path):
+                return final_path
+            raise FileNotFoundError("Audio extraction failed—is FFmpeg installed?")
+    except Exception as e:
+        print(f"DETAILED ERROR: {str(e)}")
     
 def analyze_audio(video_url, api_key):
     AUDIO_PATH = "temp_audio.m4a"
