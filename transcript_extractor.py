@@ -70,8 +70,8 @@ def download_audio(video_url):
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'm4a',
-        'impersonate': 'safari-13',
         }],
+       'impersonate': 'safari-13',
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([video_url])
