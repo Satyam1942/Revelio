@@ -6,7 +6,7 @@ from flask import Response, stream_with_context
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-from transcript_extractor import check_video_length, extract_video_id, get_video_transcript
+from transcript_extractor import check_video_length, extract_video_id, analyze_audio
 from summary_generator import process_transcript_claims
 from claim_checker import  fetch_ddg_context, run_ai_judge
 
@@ -92,11 +92,13 @@ def analyze_video():
                 yield f"data: {json.dumps({'status': 'error', 'message': 'Could not verify video length. Please check the URL.'})}\n\n"
                 return
             
-            # [1/4] Fetching transcript for: {video_url} 
+            # [1/4] Fetching audio for: {video_url} 
             yield f"data: {json.dumps({'step': 1, 'message': 'Fetching YouTube transcript...'})}\n\n"
             print('Fetching transcript...')
-            transcript = get_video_transcript(video_id)
-            print(transcript)
+            audio_object = analyze_audio(video_url, gemini_key)
+            transcript = audio_object.transcript
+            audio_ai_generated_probability = audio_object.ai_generated_probability
+            audio_vocal_analysis_statement = audio_object.vocal_analysis_statement
             print('Transcript fetched!')
             
             if transcript.startswith("Error") or transcript.startswith("An error"):
@@ -140,13 +142,16 @@ def analyze_video():
 
             print("Pipeline complete! Sending response.")
             
+            ai_generation_probability = 0.6*audio_ai_generated_probability + 0.4*extraction_data['ai_generation_probability']
+            
             # returning the response
             response_payload = {
                 "status": "success",
                 "data": {
                     "video_url": video_url,
                     "video_topic": extraction_data['video_topic'],
-                    "ai_generation_probability": extraction_data['ai_generation_probability'],
+                    "ai_generation_probability": ai_generation_probability,
+                    "audio_analysis_statement":audio_vocal_analysis_statement,
                     "metrics": {
                         "total_verifiable_claims": len(final_verdicts),
                         "total_subjective_claims": len(extraction_data['subjective_claims'])
