@@ -121,7 +121,7 @@ def analyze_video():
                     "live_search_evidence": evidence
                 }
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
                 results = executor.map(fetch_evidence, extraction_data['verifiable_claims'])
                 claims_with_evidence = list(results)
             
