@@ -2,12 +2,15 @@ import urllib.parse as urlparse
 import isodate
 import yt_dlp
 import os 
+from dotenv import load_dotenv
 
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
 from googleapiclient.discovery import build
 from yt_dlp.networking.impersonate import ImpersonateTarget
+
+load_dotenv()
 
 
 class AudioAnalysisResponse(BaseModel):
@@ -57,9 +60,12 @@ def check_video_length(video_id: str, api_key: str) -> int:
 
 def download_audio(video_url):
     output_filename = 'temp_audio'
+    PROXY_URL = os.environ.get("PROXY_URL")
+    
     ydl_opts = {
         'format': 'm4a/bestaudio/best',
         'outtmpl': f'{output_filename}.%(ext)s',
+        'proxy': PROXY_URL,
         'extractor_args': {
         'youtube': {
             # Use 'web_safari' or 'android' clients which are less restricted
