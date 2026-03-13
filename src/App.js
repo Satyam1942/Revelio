@@ -11,6 +11,7 @@ export default function App() {
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
   const [visibleClaimsCount, setVisibleClaimsCount] = useState(3);
+  const [showAllOpinions, setShowAllOpinions] = useState(false);
   const [filter, setFilter] = useState('ALL');
   const [executionTime, setExecutionTime] = useState(null);
 
@@ -46,7 +47,7 @@ export default function App() {
     setExecutionTime(null); 
 
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/analyze-video', {
+      const response = await fetch('http://localhost:5000/api/analyze-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ video_url: url }),
@@ -156,6 +157,8 @@ export default function App() {
             setFilter={setFilter}
             visibleClaimsCount={visibleClaimsCount}
             setVisibleClaimsCount={setVisibleClaimsCount}
+            showAllOpinions={showAllOpinions}
+            setShowAllOpinions={setShowAllOpinions}
             />  
           )}
         </div>

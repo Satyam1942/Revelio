@@ -8,7 +8,9 @@ export default function AnalysisReport({
   filter, 
   setFilter, 
   visibleClaimsCount, 
-  setVisibleClaimsCount 
+  setVisibleClaimsCount,
+  showAllOpinions, 
+  setShowAllOpinions
 }) {
 
   return (
@@ -52,40 +54,66 @@ export default function AnalysisReport({
                 <p className="text-lg md:text-xl font-medium leading-relaxed">"{report.video_topic}"</p>
               </div>
 
-              {/* --- AI GENERATION PROBABILITY GAUGE --- */}
-              <div className="bg-white p-6 rounded-2xl border-2 border-[#f2f2f2] shadow-sm flex flex-col md:flex-row items-center gap-6">
-                <div className="relative w-24 h-24">
-                  {/* Background Circle */}
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle
-                      cx="48" cy="48" r="40"
-                      stroke="#e5e5e5" strokeWidth="8" fill="transparent"
-                    />
-                    {/* Progress Circle */}
-                    <circle
-                      cx="48" cy="48" r="40"
-                      stroke="#ff0000" strokeWidth="8" fill="transparent"
-                      strokeDasharray={251.2}
-                      strokeDashoffset={251.2 - (251.2 * (report.ai_generation_probability || 0)) / 100}
-                      strokeLinecap="round"
-                      className="transition-all duration-1000 ease-out"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center font-black text-xl">
-                    {report.ai_generation_probability}%
+             {/* --- AI GENERATION PROBABILITY SECTION --- */}
+                <div className="bg-white p-8 rounded-2xl border-2 border-[#f2f2f2] shadow-sm flex flex-col items-center text-center">
+                  
+                  {/* 1. The Circle (Gauge) */}
+                  <div className="relative w-32 h-32 mb-4">
+                    <svg className="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
+                      <circle
+                        cx="50" cy="50" r="40"
+                        stroke="#e5e5e5"
+                        strokeWidth="10"
+                        fill="transparent"
+                      />
+                      <circle
+                        cx="50" cy="50" r="40"
+                        stroke={
+                          report.ai_generation_probability > 70 ? "#ef4444" : 
+                          report.ai_generation_probability > 40 ? "#f59e0b" : "#22c55e"
+                        }
+                        strokeWidth="10"
+                        fill="transparent"
+                        strokeDasharray="251.2"
+                        strokeDashoffset={251.2 - (251.2 * (report.ai_generation_probability || 0)) / 100}
+                        strokeLinecap="round"
+                        className="transition-all duration-1000 ease-out"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="font-black text-2xl text-[#0f0f0f]">
+                        {report.ai_generation_probability || 0}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 2. The Score Label */}
+                  <div className="mb-6">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-[#909090] mb-2">
+                      AI Detection Score
+                    </h3>
+                    <p className={`text-xl font-black ${
+                      report.ai_generation_probability > 70 ? "text-red-600" : 
+                      report.ai_generation_probability > 40 ? "text-amber-600" : "text-green-600"
+                    }`}>
+                      {report.ai_generation_probability > 70 ? "Highly Likely AI Generated" : 
+                      report.ai_generation_probability > 40 ? "Mixed/AI-Assisted" : "Likely Human Authored"}
+                    </p>
+                  </div>
+
+                  {/* 3. The Analysis Statement (Now Below) */}
+                  <div className="w-full max-w bg-[#f9f9f9] p-4 rounded-xl border border-[#eeeeee]">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-[#909090] mb-2">
+                      Vocal Texture Analysis
+                    </h3>
+                    <p className="text-[#0f0f0f] text-sm leading-relaxed">
+                      "{report.audio_analysis_statement || "Analyzing vocal artifacts for synthetic signatures..."}"
+                    </p>
+                    <p className="text-[10px] text-[#606060] mt-3 font-medium">
+                      REVELIO AUDIO FORENSICS ENGINE v2.5
+                    </p>
                   </div>
                 </div>
-                
-                <div className="text-center md:text-left">
-                  <h3 className="text-xs font-black uppercase tracking-widest text-[#909090] mb-1">AI Detection Score</h3>
-                  <p className="text-[#0f0f0f] font-bold text-lg">
-                    {report.ai_generation_probability > 70 ? "Highly Likely AI Generated" : 
-                    report.ai_generation_probability > 40 ? "Mixed/AI-Assisted" : "Likely Human Authored"}
-                  </p>
-                  <p className="text-xs text-[#606060] mt-1 italic">Based on linguistic pattern analysis and syntax consistency.</p>
-                </div>
-              </div>
-
               <div>
                 {(() => {
                   const filteredClaims = report.fact_check_results.filter(
@@ -161,16 +189,34 @@ export default function AnalysisReport({
                 })()}
               </div>
 
+              {/* SUBJECTIVE OPINIONS */}
               {report.subjective_opinions && report.subjective_opinions.length > 0 && (
                 <div className="pt-8 border-t border-[#e5e5e5]">
                   <h3 className="text-2xl font-black mb-3 tracking-tight ">Subjective Context/ Opinions</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {report.subjective_opinions.map((opinion, idx) => (
-                      <div key={idx} className="bg-[#f9f9f9] p-4 rounded-xl text-sm font-medium text-[#606060] border border-[#eeeeee]">
+                  {report.subjective_opinions.length > 4 && (
+                  <button 
+                      onClick={() => setShowAllOpinions(!showAllOpinions)}
+                      className="text-xs font-bold uppercase tracking-wider text-[#065fd4] hover:bg-[#def1ff] px-3 py-1.5 rounded-full transition-colors"
+                    >
+                      {showAllOpinions ? "Show Less" : `Show All (${report.subjective_opinions.length})`}
+                  </button>
+                  )}
+
+                  {/* The 2x2 Grid Logic */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {report.subjective_opinions
+                    .slice(0, showAllOpinions ? report.subjective_opinions.length : 4)
+                    .map((opinion, idx) => (
+                      <div 
+                        key={idx} 
+                        className="bg-[#f9f9f9] p-4 rounded-xl text-sm font-medium text-[#606060] border border-[#eeeeee] flex items-start gap-3"
+                      >
+                        <span className="text-[#909090] mt-0.5">•</span>
                         {opinion}
                       </div>
                     ))}
-                  </div>
+                </div>
+
                 </div>
               )}
             </div>
