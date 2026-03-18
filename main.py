@@ -1,12 +1,14 @@
 import os
 import json
+import asyncio
 import concurrent.futures
 from flask import Flask, request, jsonify
 from flask import Response, stream_with_context
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-from transcript_extractor import check_video_length, extract_video_id, analyze_audio
+from asgiref.sync import async_to_sync, sync_to_async
+from transcript_extractor import check_video_length, extract_video_id, analyze_audio, get_transcript
 from summary_generator import process_transcript_claims
 from claim_checker import  fetch_ddg_context, run_ai_judge
 
@@ -18,7 +20,7 @@ CORS(app)
 ### ------------------ CACHE logic ------------------------------------ 
 CACHE_FILE = 'video_cache.jsonl'
 memory_cache = {}
-MAX_LENGTH = 960
+MAX_LENGTH = 660
 
 def initialize_cache_on_startup():
     """Reads the .jsonl file ONCE when the server boots to populate RAM."""
@@ -51,6 +53,24 @@ def append_to_cache(video_id, data):
         f.write(json.dumps(new_record) + '\n')
 # -------------------------------------------
 
+@app.route('/api/get-history', methods = ['GET']) 
+def get_history():
+    global memory_cache
+    value_list = list(memory_cache.values())[-6:]
+    response_payload = {
+        "status": "success",
+        "data": {
+            "history": [
+                {
+                    'url' : value['data']['video_url'],
+                    'topic' : value['data']['video_topic'][:50],    
+                } 
+                for value in value_list
+            ]
+        }
+    }
+    return jsonify(response_payload)
+
 
 @app.route('/api/analyze-video', methods=['POST'])
 def analyze_video():
@@ -69,54 +89,59 @@ def analyze_video():
     if not ( gemini_key or youtube_key ):
         return jsonify({"status": "error", "message": "Server missing API configurations."}), 500
 
-    def generate():
+    async def generate():
         try: 
             # Checking Cache if data is there 
-            video_id = extract_video_id(video_url)
+            video_id, is_shorts = extract_video_id(video_url)
             if not video_id:
                 yield f"data: {json.dumps({'status': 'error', 'message': 'Could not fetch video ID. Please check the URL.'})}\n\n"
-
+            
             global memory_cache
             if video_id in memory_cache:
                 print(f"\n[CACHE HIT] ⚡ Returning from memory for video: {video_id}")
                 response_payload = memory_cache[video_id]
-                yield f"data: {json.dumps({'step': 5, 'message': 'Complete!', 'result': response_payload})}\n\n"
+                yield f"data: {json.dumps({'step': 4, 'message': 'Complete!', 'result': response_payload})}\n\n"
                 return
   
-            yield f"data: {json.dumps({'step': 0, 'message': 'Verifying video length...'})}\n\n"
-            video_length = check_video_length(video_id, youtube_key)
-            if video_length > MAX_LENGTH:
-                yield f"data: {json.dumps({'status': 'error', 'message': f'Video is too long ({video_length // 60} mins). Please use a video under 15 minutes.'})}\n\n"
-                return 
-            elif video_length == -1:
-                yield f"data: {json.dumps({'status': 'error', 'message': 'Could not verify video length. Please check the URL.'})}\n\n"
-                return
-            
-            # [1/4] Fetching audio for: {video_url} 
-            yield f"data: {json.dumps({'step': 1, 'message': 'Fetching YouTube transcript...'})}\n\n"
-            print('Fetching transcript...')
-            audio_object = analyze_audio(video_url, gemini_key)
-            transcript = audio_object.transcript
-            audio_ai_generated_probability = audio_object.ai_generated_probability
-            audio_vocal_analysis_statement = audio_object.vocal_analysis_statement
-            print('Transcript fetched!')
-            
-            if transcript.startswith("Error") or transcript.startswith("An error"):
-                yield f"data: {json.dumps({'status': 'error', 'message': 'Error fetching Transcript'})}\n\n" 
-                return Response(status=500)
-            
-            print('Extracting claims...')
-            # "[2/4] Extracting and routing claims via Gemini..."
-            yield f"data: {json.dumps({'step': 2, 'message': 'Extracting claims...'})}\n\n"
-            extraction_data = process_transcript_claims(transcript, gemini_key)
-            print('Claims extracted!')
-            
-            if extraction_data.get("status") == "error":
-                yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
-                return Response(status=500)
+            if not is_shorts :
+                yield f"data: {json.dumps({'step': 0, 'message': 'Verifying video length...'})}\n\n"
+                video_length = check_video_length(video_id, youtube_key)
+                if video_length > MAX_LENGTH:
+                    yield f"data: {json.dumps({'status': 'error', 'message': f'Video is too long ({video_length // 60} mins). Please use a video under 10 minutes.'})}\n\n"
+                    return 
+                elif video_length == -1:
+                    yield f"data: {json.dumps({'status': 'error', 'message': 'Could not verify video length. Please check the URL.'})}\n\n"
+                    return
                 
-            # [3/4] Fetching live search evidence for {len(extraction_data['verifiable_claims'])} facts..."
-            yield f"data: {json.dumps({'step': 3, 'message': f'Fetching live search evidence for {len(extraction_data.get("verifiable_claims", []))} facts...'})}\n\n"
+            async def transcript_sequence (video_id) :
+                try:
+                    print('Fetching transcript...')
+                    transcript = await asyncio.to_thread(get_transcript, video_id)
+                    if transcript.startswith("Error") or transcript.startswith("An error"):
+                        raise ValueError("YouTube transcript is unavailable for this video.")
+                    print('Transcript fetched!')
+                    
+                    print('Extracting claims...')
+                    claims = await asyncio.to_thread(process_transcript_claims, transcript, gemini_key)
+                    if claims.get("status") == "error":
+                        raise ValueError("Extraction claim failed, Gemini 2.5 API might be unavailable.")
+                    print('Claims extracted!')
+                    
+                    return claims
+                except Exception as e:
+                    raise ValueError(f"Error : {e}")
+                
+            # [1/3] Fetching audio and extracting claims for: {video_url} 
+            yield f"data: {json.dumps({'step': 1, 'message': 'Fetching Audio and Extracting Claims...'})}\n\n"
+            audio_task = asyncio.to_thread(analyze_audio, video_url, gemini_key)
+            transcript_task = transcript_sequence(video_id)
+            audio_obj,  extraction_data = await asyncio.gather(audio_task, transcript_task)
+            
+            audio_ai_generated_probability = audio_obj.ai_generated_probability
+            audio_vocal_analysis_statement = audio_obj.vocal_analysis_statement
+            
+            # [2/3] Fetching live search evidence for {len(extraction_data['verifiable_claims'])} facts..."
+            yield f"data: {json.dumps({'step': 2, 'message': f'Fetching live search evidence for {len(extraction_data.get("verifiable_claims", []))} facts...'})}\n\n"
             claims_with_evidence = []
             
             def fetch_evidence(item):
@@ -132,8 +157,8 @@ def analyze_video():
                 results = executor.map(fetch_evidence, extraction_data['verifiable_claims'])
                 claims_with_evidence = list(results)
             
-            # [4/4] Passing evidence to the AI Judge..."
-            yield f"data: {json.dumps({'step': 4, 'message': 'Passing evidence to the AI Judge...'})}\n\n"
+            # [3/3] Passing evidence to the AI Judge..."
+            yield f"data: {json.dumps({'step': 3, 'message': 'Passing evidence to the AI Judge...'})}\n\n"
             final_verdicts = []
             if claims_with_evidence:
                 final_report_obj = run_ai_judge(claims_with_evidence, gemini_key)
@@ -144,11 +169,13 @@ def analyze_video():
             
             ai_generation_probability = 0.6*audio_ai_generated_probability + 0.4*extraction_data['ai_generation_probability']
             
+    
             # returning the response
             response_payload = {
                 "status": "success",
                 "data": {
                     "video_url": video_url,
+                    "is_shorts": is_shorts,
                     "video_topic": extraction_data['video_topic'],
                     "ai_generation_probability": ai_generation_probability,
                     "audio_analysis_statement":audio_vocal_analysis_statement,
@@ -163,11 +190,20 @@ def analyze_video():
 
             # 3. APPEND to the cache json file 
             append_to_cache(video_id, response_payload)
-            yield f"data: {json.dumps({'step': 5, 'message': 'Complete!', 'result': response_payload})}\n\n"
+            yield f"data: {json.dumps({'step': 4, 'message': 'Complete!', 'result': response_payload})}\n\n"
         
         except Exception as e:
             print(f"Pipeline failed: {e}")
             yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
-            return Response(status=500)
+            return
         
-    return  Response(stream_with_context(generate()), mimetype='text/event-stream')
+    def sync_generator_wrapper():
+        # This helper bridges the async world to the sync world
+        gen = generate()
+        while True:
+            try:
+                yield async_to_sync(gen.__anext__)()
+            except StopAsyncIteration:
+                break
+    
+    return Response(stream_with_context(sync_generator_wrapper()), mimetype='text/event-stream')
