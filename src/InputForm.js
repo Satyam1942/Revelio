@@ -1,6 +1,24 @@
 import React from 'react';
+import { useState, useEffect } from 'react';
 
 export default function InputForm({ url, setUrl, handleCheckVideo, error }) {
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/get-history') 
+      .then(res => res.json())
+      .then(res => {
+        if (res.status === "success") {
+          setHistory(res.data.history);
+        }
+      })
+      .catch(err => console.error("Failed to fetch history", err));
+  }, []);
+
+  const handleHistoryItemClick = (selectedUrl) => {
+    handleCheckVideo(null, selectedUrl); 
+  };
+
   return (
     <>
             <div className="text-center space-y-8 animate-in fade-in duration-500">
@@ -37,7 +55,8 @@ export default function InputForm({ url, setUrl, handleCheckVideo, error }) {
                   Analyze Video
                 </button>
               </form>
-
+              
+              {/* System Guidelines */}
               <div className="mt-12 bg-[#f2f2f2] rounded-2xl p-6 text-sm text-[#0f0f0f] text-left border border-transparent">
                 <h4 className="font-bold text-base mb-3 flex items-center">
                   <span className="mr-2">💡</span> System Guidelines:
@@ -45,25 +64,56 @@ export default function InputForm({ url, setUrl, handleCheckVideo, error }) {
                 <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-90">
                   <li className="flex items-start">
                     <span className="text-[#ff0000] mr-2">•</span>
-                    <span><strong>15 minutes Limit:</strong> Processing is optimized for videos under 15 minutes.</span>
+                    <span><strong>10 minutes Limit:</strong> Processing is optimized for shorts and videos under 10 minutes.</span>
                   </li>
                   <li className="flex items-start">
                     <span className="text-[#ff0000] mr-2">•</span>
                     <span><strong>Fact-Based:</strong> Best used for reviews, news, and technical essays.</span>
                   </li>
-                  <li className="flex items-start">
-                    <span className="text-[#ff0000] mr-2">•</span>
-                    <span><strong>Shorts Unspported:</strong> Shorts are currently not supported.</span>
-                  </li>
                 </ul>
               </div>
               
+              {/* Error  */}
               {error && (
                 <div className="mt-6 p-4 bg-[#fff1f0] text-[#d93025] rounded-xl border border-[#ffccc7] font-medium">
                   {error}
                 </div>
               )}
             </div>
+
+              {/* History */}
+              {history.length > 0 && (
+                  <div className="bg-[#f2f2f2] rounded-3xl mt-5 p-6 shadow-sm border border-[#eeeeee] animate-in slide-in-from-bottom-4 duration-700">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-sm font-bold text-[#0f0f0f] uppercase tracking-wider flex items-center">
+                        <span className="mr-2 text-lg">🕒</span> Recent History
+                      </h4>
+                      <span className="text-xs text-[#606060] font-medium">{history.length} items cached</span>
+                    </div>
+          
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {history.map((item, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleHistoryItemClick(item.url)}
+                        className="flex items-center text-left p-3 rounded-xl border border-[#f0f0f0] bg-[#fafafa] hover:bg-[#f2f2f2] hover:border-[#e0e0e0] transition-all group"
+                      >
+                        <div className="w-8 h-8 flex-shrink-0 bg-red-600/10 rounded-lg flex items-center justify-center mr-3 group-hover:bg-red-600 group-hover:text-white transition-colors">
+                          <span className="text-xs">▶</span>
+                        </div>
+                        <div className="overflow-hidden">
+                          <p className="text-sm font-semibold text-[#0f0f0f] truncate">
+                            {item.topic}
+                          </p>
+                          <p className="text-[11px] text-[#606060] truncate opacity-70">
+                            {item.url}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+            )}
     </>
 );
 }

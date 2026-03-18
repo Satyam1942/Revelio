@@ -14,10 +14,9 @@ export default function Loader({ loadingMessage, currentStep }) {
                 
                 <div className="space-y-5">
                   {[
-                    { step: 1, label: "Scanning Audio" },
-                    { step: 2, label: "AI Analysis" },
-                    { step: 3, label: "Web Verification" },
-                    { step: 4, label: "Judge's Verdict" }
+                    { step: 1, label: "Scanning Audio & Extracting Claims" },
+                    { step: 2, label: "Web Verification" },
+                    { step: 3, label: "Judge's Verdict" }
                   ].map((item) => (
                     <div key={item.step} className="flex items-center group">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black mr-4 transition-all duration-500 shadow-sm

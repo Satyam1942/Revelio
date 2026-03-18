@@ -22,7 +22,9 @@ export default function App() {
     try {
       const urlObj = new URL(url);
       let videoId = '';
-      if (urlObj.hostname === 'youtu.be') {
+      if (urlObj.pathname.startsWith("/shorts/")) {
+        videoId = urlObj.pathname.split("/")[2];
+      } else if (urlObj.hostname === 'youtu.be') {
         videoId = urlObj.pathname.slice(1);
       } else if (urlObj.hostname.includes('youtube.com')) {
         videoId = urlObj.searchParams.get('v');
@@ -33,9 +35,13 @@ export default function App() {
     }
   };
 
-  const handleCheckVideo = async (e) => {
-    e.preventDefault();
-    if (!url) return;
+  const handleCheckVideo = async (e, manualUrl = null) => {
+    if(e!=null ) {
+        e.preventDefault();
+    }
+
+    const urlToAnalyze = manualUrl || url;
+    if (!urlToAnalyze) return;
     
     const startTime = Date.now();
 
@@ -50,7 +56,7 @@ export default function App() {
       const response = await fetch('http://localhost:5000/api/analyze-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ video_url: url }),
+        body: JSON.stringify({ video_url: urlToAnalyze }),
       });
 
       const reader = response.body.getReader();
@@ -76,8 +82,8 @@ export default function App() {
 
             setCurrentStep(data.step);
             setLoadingMessage(data.message);
-
-            if (data.step === 5 && data.result) {
+            
+            if (data.step === 4 && data.result) {
               const endTime = Date.now();
               const duration = ((endTime - startTime) / 1000).toFixed(2);
               setExecutionTime(duration);
