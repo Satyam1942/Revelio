@@ -36,10 +36,7 @@ def run_ai_judge(claims_with_evidence: list[dict], api_key: str) -> FinalReport 
     and returns a structured list of verdicts.
     """
     client = genai.Client(api_key=api_key)
-    
-    # We can stick with Flash, or upgrade to Gemini 2.5 Pro if you want 
-    # maximum reasoning capability for complex, nuanced claims.
-    model_id = 'gemini-2.5-flash' 
+    model_id = 'gemini-3.1-flash-lite-preview' 
     
     system_instruction = """
     You are a strict, objective fact-checking judge. 
@@ -70,7 +67,7 @@ def run_ai_judge(claims_with_evidence: list[dict], api_key: str) -> FinalReport 
                 system_instruction=system_instruction,
                 response_mime_type="application/json",
                 response_schema=FinalReport,
-                temperature=0.0, # Zero temperature. We want logic, not creativity.
+                temperature=0.0,
             ),
         )
         
