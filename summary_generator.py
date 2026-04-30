@@ -27,7 +27,7 @@ def process_transcript_claims(transcript: str, api_key: str) -> Dict[str, Any]:
     into verifiable and subjective buckets.
     """
     client = genai.Client(api_key=api_key)
-    model_id = 'gemini-2.5-flash' 
+    model_id = os.environ.get("GEMINI_SUMMARY_MODEL_ID")
     
     system_instruction = """
     You are an expert data-extraction pipeline. Read the video transcript and extract 

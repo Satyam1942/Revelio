@@ -36,7 +36,7 @@ def run_ai_judge(claims_with_evidence: list[dict], api_key: str) -> FinalReport 
     and returns a structured list of verdicts.
     """
     client = genai.Client(api_key=api_key)
-    model_id = 'gemini-3.1-flash-lite-preview' 
+    model_id = os.environ.get("GEMINI_JUDGE_MODEL_ID", "gemini-2.5-flash")
     
     system_instruction = """
     You are a strict, objective fact-checking judge. 
