@@ -13,7 +13,7 @@ export default function App() {
   const [visibleClaimsCount, setVisibleClaimsCount] = useState(3);
   const [showAllOpinions, setShowAllOpinions] = useState(false);
   const [filter, setFilter] = useState('ALL');
-  const [executionTime, setExecutionTime] = useState(null);
+  const [executionTimes, setExecutionTimes] = useState({});
 
 
   const videoRef = useRef(null);
@@ -50,7 +50,7 @@ export default function App() {
     setReport(null);
     setVisibleClaimsCount(3);
     setFilter('ALL');
-    setExecutionTime(null); 
+    setExecutionTimes({}); 
 
     try {
       const response = await fetch('http://localhost:5000/api/analyze-video', {
@@ -62,12 +62,25 @@ export default function App() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
 
+      let buffer = '';
+      let reportStarted = false;
+      let currentReport = null;
+      let isFinished = false;
+
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          if (!isFinished && reportStarted) {
+            const endTime = Date.now();
+            setExecutionTimes(prev => ({ ...prev, final: ((endTime - startTime) / 1000).toFixed(2) }));
+            isFinished = true;
+          }
+          break;
+        }
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop(); // Keep the last incomplete chunk in the buffer
         
         for (const line of lines) {
           if (line.startsWith('data: ')) {
@@ -80,16 +93,32 @@ export default function App() {
               break;
             }
 
-            setCurrentStep(data.step);
-            setLoadingMessage(data.message);
-            
-            if (data.step === 4 && data.result) {
-              const endTime = Date.now();
-              const duration = ((endTime - startTime) / 1000).toFixed(2);
-              setExecutionTime(duration);
-
-              setReport(data.result.data);
-              setLoading(false);
+            if (data.type) {
+              if (!reportStarted) {
+                setLoading(false); // Transition to the report layout with skeletons
+                reportStarted = true;
+              }
+              
+              // Calculate elapsed time for this specific payload type (audio, video, transcript, etc.)
+              const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+              setExecutionTimes(prev => ({ ...prev, [data.type]: elapsed }));
+              
+              currentReport = currentReport ? { ...currentReport } : {};
+              if (data.type === 'transcript') {
+                Object.assign(currentReport, data);
+              } else if (data.type === 'audio') {
+                currentReport.audio_analysis = data;
+              } else if (data.type === 'video') {
+                currentReport.video_analysis = data;
+              } else if (data.type === 'final') {
+                currentReport.final_score = data.ai_generation_probability;
+                isFinished = true;
+              }
+              setReport(currentReport);
+            } else if (!reportStarted) {
+              // Standard loading step updates before any data arrives
+              setCurrentStep(data.step);
+              setLoadingMessage(data.message);
             }
           }
         }
@@ -117,26 +146,15 @@ export default function App() {
 
 
   return (
-    <div className="min-h-screen bg-[#f9f9f9] text-[#0f0f0f] p-4 md:p-8 flex flex-col bg-transparent items-center font-['Roboto',sans-serif]">
+    <div className="min-h-screen text-[#0f0f0f] p-4 md:p-8 flex flex-col bg-black items-center font-['Roboto',sans-serif]">
       
-      {/* --- THE CUSTOM VIDEO BACKGROUND --- */}
+      {/* --- THE CUSTOM BACKGROUND --- */}
       <div className="fixed inset-0 z-[-1]">
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          loop
-          playsInline
-          className="absolute w-full h-full object-cover brightness-[0.4]"
-        >
-          {/* Ensure the filename here matches exactly what you put in /public */}
-          <source src="/background.mp4" type="video/mp4" />
-        </video>
         {/* Subtle blur overlay to make the White/Red UI pop */}
         <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]"></div>
       </div>
 
-      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-sm border border-[#e5e5e5] overflow-hidden">
+      <div className={`w-full ${report ? 'max-w-7xl' : 'max-w-4xl'} bg-white rounded-2xl shadow-sm border border-[#e5e5e5] overflow-hidden transition-all duration-500`}>
         <div className="p-6 md:p-10">
 
         {/* --- STATE 1: INPUT FORM --- */}
@@ -156,7 +174,8 @@ export default function App() {
           {report && !loading && (
             <AnalysisReport 
             report={report} 
-            executionTime={executionTime} 
+            executionTimes={executionTimes} 
+            isAnalyzing={!executionTimes.final}
             resetApp={resetApp} 
             getYouTubeEmbedUrl={getYouTubeEmbedUrl}
             filter={filter}
