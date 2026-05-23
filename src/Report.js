@@ -58,45 +58,50 @@ export default function AnalysisReport({
     const audioStatement = report.audio_analysis?.vocal_analysis_statement || report.audio_analysis?.audio_analysis_statement || "No Analysis available...";
     
     return (
-      <div className={`bg-white p-8 rounded-2xl border-2 border-[#f2f2f2] shadow-sm flex flex-col items-center text-center h-full justify-center`}>
+      <div className={`bg-white p-8 rounded-2xl border-2 border-[#f2f2f2] shadow-sm h-full flex flex-col`}>
           {executionTimes?.audio && (
-              <p className="text-[10px] font-bold text-[#ff0000] mt-1">Analyzed in {executionTimes.audio}s</p>
+              <p className="text-[10px] font-bold text-[#ff0000] mb-4 text-center">Analyzed in {executionTimes.audio}s</p>
             )}
-        {/* 1. The Circle (Gauge) */}
-        <div className="relative w-32 h-32 mb-4">
-          <svg className="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="40" stroke="#e5e5e5" strokeWidth="10" fill="transparent" />
-            <circle
-              cx="50" cy="50" r="40"
-              stroke="#ef4444"
-              strokeWidth="10"
-              fill="transparent"
-              strokeDasharray="251.2"
-              strokeDashoffset={251.2 - (251.2 * audioScore) / 100}
-              strokeLinecap="round"
-              className="transition-all duration-1000 ease-out"
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="font-black text-2xl text-[#0f0f0f]">{audioScore}%</span>
+        <div className="flex flex-col md:flex-row items-center justify-center gap-8 flex-grow">
+          {/* Left side: Analysis */}
+          <div className="flex-1 text-center md:text-left">
+            {/* The Score Label */}
+            <div className="mb-6">
+              <h3 className="text-xs font-black tracking-widest mb-2">AUDIO AI SCORE</h3>
+              <p className="text-xl font-black">
+                {audioScore > 70 ? "Highly Likely AI Voice" : 
+                audioScore > 40 ? "Mixed/AI-Assisted" : "Likely Human"}
+              </p>
+            </div>
+
+            {/* The Analysis Statement */}
+            <div className="w-full bg-[#f9f9f9] p-4 rounded-xl border border-[#eeeeee]">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-[#909090] mb-2">Vocal Analysis</h3>
+              <p className="text-[#0f0f0f] text-sm leading-relaxed">
+                "{audioStatement}"
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* 2. The Score Label */}
-        <div className="mb-6">
-          <h3 className="text-xs font-black tracking-widest mb-2">AUDIO AI SCORE</h3>
-          <p className="text-xl font-black">
-            {audioScore > 70 ? "Highly Likely AI Voice" : 
-             audioScore > 40 ? "Mixed/AI-Assisted" : "Likely Human"}
-          </p>
-        </div>
-
-        {/* 3. The Analysis Statement */}
-        <div className="w-full bg-[#f9f9f9] p-4 rounded-xl border border-[#eeeeee]">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-[#909090] mb-2">Vocal Analysis</h3>
-          <p className="text-[#0f0f0f] text-sm leading-relaxed">
-            "{audioStatement}"
-          </p>
+          {/* Right side: Gauge */}
+          <div className="relative w-32 h-32 flex-shrink-0">
+            <svg className="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="40" stroke="#e5e5e5" strokeWidth="10" fill="transparent" />
+              <circle
+                cx="50" cy="50" r="40"
+                stroke="#ef4444"
+                strokeWidth="10"
+                fill="transparent"
+                strokeDasharray="251.2"
+                strokeDashoffset={251.2 - (251.2 * audioScore) / 100}
+                strokeLinecap="round"
+                className="transition-all duration-1000 ease-out"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="font-black text-2xl text-[#0f0f0f]">{audioScore}%</span>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -111,6 +116,9 @@ export default function AnalysisReport({
     const videoScore = Math.round(videoAnalysis.hybrid_authenticity_score ?? videoAnalysis.deepfake_probability ?? 0);
     
     let videoStatement = geminiAnalysis.physicality_check || videoAnalysis.visual_artifacts_summary;
+    const synthIdDetected = geminiAnalysis.synth_id_detected || (geminiAnalysis.detected_artifacts && geminiAnalysis.detected_artifacts.includes('synth_id'));
+    const metadataAITage = geminiAnalysis.metadata_ai_tags && geminiAnalysis.metadata_ai_tags.length > 0 ? geminiAnalysis.metadata_ai_tags.join(', ') : null;
+
     if (!videoStatement && geminiAnalysis.detected_artifacts) {
       videoStatement = "Detected: " + geminiAnalysis.detected_artifacts.join(', ');
     }
@@ -119,79 +127,111 @@ export default function AnalysisReport({
     const artifacts = geminiAnalysis.detected_artifacts || [];
     const kinematicScore = localAnalysis.kinematic_integrity_score;
     const physicsViolation = localAnalysis.physics_violation_index;
+    const boilingIndex = localAnalysis["temporal_flow_stability (boiling)"];
+    const morphIndex = localAnalysis["topology_stability (morphing)"];
+    const detectedEntity = localAnalysis.detected_entity;
     
     return (
-      <div className={`bg-white p-8 rounded-2xl border-2 border-[#f2f2f2] shadow-sm flex flex-col items-center text-center h-full justify-center`}>
+      <div className={`bg-white p-8 rounded-2xl border-2 border-[#f2f2f2] shadow-sm h-full flex flex-col`}>
            {executionTimes?.video && (
-              <p className="text-[10px] font-bold text-[#ff0000] mt-1">Analyzed in {executionTimes.video}s</p>
+              <p className="text-[10px] font-bold text-[#ff0000] mb-4 text-center">Analyzed in {executionTimes.video}s</p>
             )}
-        {/* 1. The Circle (Gauge) */}
-        <div className="relative w-32 h-32 mb-4">
-          <svg className="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="40" stroke="#e5e5e5" strokeWidth="10" fill="transparent" />
-            <circle
-              cx="50" cy="50" r="40"
-              stroke="#ef4444"
-              strokeWidth="10"
-              fill="transparent"
-              strokeDasharray="251.2"
-              strokeDashoffset={251.2 - (251.2 * videoScore) / 100}
-              strokeLinecap="round"
-              className="transition-all duration-1000 ease-out"
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="font-black text-2xl text-[#0f0f0f]">{videoScore}%</span>
+        <div className="flex flex-col md:flex-row items-center justify-center gap-8 flex-grow">
+          {/* Left side: Analysis */}
+          <div className="flex-1 text-center md:text-left">
+            {/* The Score Label */}
+            <div className="mb-6">
+              <h3 className="text-xs font-black tracking-widest mb-2">VIDEO AI SCORE</h3>
+              <p className="text-xl font-black">
+              {videoScore === 0? "No Score Available" :
+                videoScore > 70 ? "High Deepfake Risk" : 
+                videoScore > 40 ? "Potential Manipulation" : "Likely Authentic"}
+              </p>
+            </div>
+
+            {/* The Analysis Statement */}
+            <div className="w-full bg-[#f9f9f9] p-4 rounded-xl border border-[#eeeeee]">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-[#909090] mb-2">Visual Analysis Summary</h3>
+              <p className="text-[#0f0f0f] text-sm leading-relaxed mb-4">
+                "{videoStatement}"
+              </p>
+              
+              {/* Extended Video Metrics */}
+              <div className="w-full grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                  {kinematicScore && (
+                    <div className="bg-white border border-[#e5e5e5] rounded-lg p-2 flex flex-col items-center justify-center shadow-sm text-center">
+                        <span className="text-[10px] font-bold text-[#909090] uppercase tracking-wider mb-1">Kinematics</span>
+                        <span className={`text-sm font-black ${kinematicScore.includes('Suspicious') || kinematicScore.includes('Anomaly') ? 'text-[#ff0000]' : 'text-[#0f0f0f]'}`}>{kinematicScore}</span>
+                    </div>
+                  )}
+                  {physicsViolation && (
+                    <div className="bg-white border border-[#e5e5e5] rounded-lg p-2 flex flex-col items-center justify-center shadow-sm text-center">
+                        <span className="text-[10px] font-bold text-[#909090] uppercase tracking-wider mb-1">Physics</span>
+                        <span className={`text-sm font-black ${physicsViolation.includes('Anomaly') || physicsViolation.includes('Violation') ? 'text-[#ff0000]' : 'text-[#0f0f0f]'}`}>{physicsViolation}</span>
+                    </div>
+                  )}
+                  {boilingIndex !== undefined && (
+                    <div className="bg-white border border-[#e5e5e5] rounded-lg p-2 flex flex-col items-center justify-center shadow-sm text-center">
+                        <span className="text-[10px] font-bold text-[#909090] uppercase tracking-wider mb-1">Boiling</span>
+                        <span className={`text-sm font-black text-[#0f0f0f]`}>{boilingIndex}</span>
+                    </div>
+                  )}
+                  {morphIndex !== undefined && (
+                    <div className="bg-white border border-[#e5e5e5] rounded-lg p-2 flex flex-col items-center justify-center shadow-sm text-center">
+                        <span className="text-[10px] font-bold text-[#909090] uppercase tracking-wider mb-1">Morphing</span>
+                        <span className={`text-sm font-black text-[#0f0f0f]`}>{morphIndex}</span>
+                    </div>
+                  )}
+                  {detectedEntity && (
+                    <div className="bg-white border border-[#e5e5e5] rounded-lg p-2 flex flex-col items-center justify-center shadow-sm text-center">
+                        <span className="text-[10px] font-bold text-[#909090] uppercase tracking-wider mb-1">Entity</span>
+                        <span className={`text-sm font-black text-[#0f0f0f] line-clamp-1 w-full`} title={detectedEntity}>{detectedEntity}</span>
+                    </div>
+                  )}
+                  <div className="bg-white border border-[#e5e5e5] rounded-lg p-2 flex flex-col items-center justify-center shadow-sm text-center">
+                      <span className="text-[10px] font-bold text-[#909090] uppercase tracking-wider mb-1">SynthID</span>
+                      <span className={`text-sm font-black ${synthIdDetected ? 'text-[#ff0000]' : 'text-[#0f0f0f]'}`}>{synthIdDetected ? 'Detected' : 'NA'}</span>
+                  </div>
+                  <div className="bg-white border border-[#e5e5e5] rounded-lg p-2 flex flex-col items-center justify-center shadow-sm text-center">
+                      <span className="text-[10px] font-bold text-[#909090] uppercase tracking-wider mb-1">AI Tags</span>
+                      <span className="text-sm font-black text-[#0f0f0f] line-clamp-1 w-full" title={metadataAITage || 'NA'}>{metadataAITage || 'NA'}</span>
+                  </div>
+              </div>
+
+              {artifacts.length > 0 && (
+                <div className="w-full border-t border-[#e5e5e5] pt-3">
+                  <h3 className="text-[12px] font-bold uppercase tracking-widest text-[#909090] mb-2">Detected Artifacts</h3>
+                  <div className="flex flex-wrap gap-1.5 justify-center">
+                    {artifacts.map((artifact, idx) => (
+                      <span key={idx} className="bg-[#ff0000]/10 text-[#ff0000] border border-[#ff0000]/20 px-2 py-1 rounded text-[12px] font-bold">
+                        {artifact}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* 2. The Score Label */}
-        <div className="mb-6">
-          <h3 className="text-xs font-black tracking-widest mb-2">VIDEO AI SCORE</h3>
-          <p className="text-xl font-black">
-           {videoScore === 0? "No Score Available" :
-            videoScore > 70 ? "High Deepfake Risk" : 
-             videoScore > 40 ? "Potential Manipulation" : "Likely Authentic"}
-          </p>
-        </div>
-
-        {/* 3. The Analysis Statement */}
-        <div className="w-full bg-[#f9f9f9] p-4 rounded-xl border border-[#eeeeee] flex flex-col items-center">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-[#909090] mb-2">Visual Analysis Summary</h3>
-          <p className="text-[#0f0f0f] text-sm leading-relaxed mb-4">
-            "{videoStatement}"
-          </p>
-          
-          {/* Extended Video Metrics */}
-          {(kinematicScore || physicsViolation) && (
-             <div className="w-full grid grid-cols-2 gap-2 mb-4">
-                {kinematicScore && (
-                   <div className="bg-white border border-[#e5e5e5] rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
-                      <span className="text-[12px] font-bold text-[#909090] uppercase tracking-wider mb-1">Kinematics</span>
-                      <span className={`text-s font-black ${kinematicScore.includes('Suspicious') || kinematicScore.includes('Anomaly') ? 'text-[#ff0000]' : 'text-[#0f0f0f]'}`}>{kinematicScore}</span>
-                   </div>
-                )}
-                {physicsViolation && (
-                   <div className="bg-white border border-[#e5e5e5] rounded-lg p-2 flex flex-col items-center justify-center shadow-sm">
-                      <span className="text-[12px] font-bold text-[#909090] uppercase tracking-wider mb-1">Physics</span>
-                      <span className={`text-s font-black ${physicsViolation.includes('Anomaly') || physicsViolation.includes('Violation') ? 'text-[#ff0000]' : 'text-[#0f0f0f]'}`}>{physicsViolation}</span>
-                   </div>
-                )}
-             </div>
-          )}
-
-          {artifacts.length > 0 && (
-             <div className="w-full border-t border-[#e5e5e5] pt-3">
-               <h3 className="text-[12px] font-bold uppercase tracking-widest text-[#909090] mb-2">Detected Artifacts</h3>
-               <div className="flex flex-wrap gap-1.5 justify-center">
-                 {artifacts.map((artifact, idx) => (
-                   <span key={idx} className="bg-[#ff0000]/10 text-[#ff0000] border border-[#ff0000]/20 px-2 py-1 rounded text-[12px] font-bold">
-                     {artifact}
-                   </span>
-                 ))}
-               </div>
-             </div>
-          )}
+          {/* Right side: Gauge */}
+          <div className="relative w-32 h-32 flex-shrink-0">
+            <svg className="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="40" stroke="#e5e5e5" strokeWidth="10" fill="transparent" />
+              <circle
+                cx="50" cy="50" r="40"
+                stroke="#ef4444"
+                strokeWidth="10"
+                fill="transparent"
+                strokeDasharray="251.2"
+                strokeDashoffset={251.2 - (251.2 * videoScore) / 100}
+                strokeLinecap="round"
+                className="transition-all duration-1000 ease-out"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="font-black text-2xl text-[#0f0f0f]">{videoScore}%</span>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -246,18 +286,7 @@ export default function AnalysisReport({
         <div className="space-y-8">
           {/* AUDIO & VIDEO ANALYSIS CONTAINERS */}
           <div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {report.audio_analysis ? (
-                <ScoreSection />
-              ) : isAnalyzing ? (
-                <ScoreSkeleton />
-              ) : (
-                <div className="bg-white p-8 rounded-2xl border-2 border-[#f2f2f2] shadow-sm flex flex-col items-center text-center h-full justify-center text-[#909090]">
-                  <svg className="w-16 h-16 mb-4 text-[#e5e5e5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
-                  <h3 className="text-xs font-black tracking-widest mb-2 uppercase">AUDIO AI SCORE</h3>
-                  <p className="text-sm font-medium">No audio analysis data available.</p>
-                </div>
-              )}
+            <div className="flex flex-col gap-6">
               {report.video_analysis ? (
                 <VideoAnalysisSection />
               ) : isAnalyzing ? (
@@ -267,6 +296,17 @@ export default function AnalysisReport({
                   <svg className="w-16 h-16 mb-4 text-[#e5e5e5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                   <h3 className="text-xs font-black tracking-widest mb-2 uppercase">VIDEO AI SCORE</h3>
                   <p className="text-sm font-medium">No visual analysis data available for this video.</p>
+                </div>
+              )}
+              {report.audio_analysis ? (
+                <ScoreSection />
+              ) : isAnalyzing ? (
+                <ScoreSkeleton />
+              ) : (
+                <div className="bg-white p-8 rounded-2xl border-2 border-[#f2f2f2] shadow-sm flex flex-col items-center text-center h-full justify-center text-[#909090]">
+                  <svg className="w-16 h-16 mb-4 text-[#e5e5e5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                  <h3 className="text-xs font-black tracking-widest mb-2 uppercase">AUDIO AI SCORE</h3>
+                  <p className="text-sm font-medium">No audio analysis data available.</p>
                 </div>
               )}
             </div>
