@@ -15,7 +15,7 @@ from audio_analyzer import AudioAnalyzer
 from video_analyzer import VideoAnalyzer
 from summary_generator import process_transcript_claims
 from claim_checker import  fetch_ddg_context, run_ai_judge
-from cache_manager import memory_cache, append_to_cache
+from cache_manager import memory_cache, append_to_cache, get_from_cache
 
 load_dotenv()
 
@@ -35,7 +35,7 @@ def get_history():
                     'url' : value['data']['video_url'],
                     'topic' : value['data']['video_topic'][:50],    
                 } 
-                for value in value_list
+                for value in reversed(value_list)
             ]
         }
     }
@@ -53,15 +53,18 @@ def analyze_video():
     if not video_url:
         return jsonify({"status": "error", "message": "No video_url provided"}), 400
 
-    gemini_key = os.environ.get("GEMINI_API_KEY")
+    gemini_summary_key = os.environ.get("GEMINI_API_SUMMARY_KEY")
+    gemini_audio_key = os.environ.get("GEMINI_API_AUDIO_KEY")
+    gemini_video_key = os.environ.get("GEMINI_API_VIDEO_KEY")
+    gemini_judge_key = os.environ.get("GEMINI_API_JUDGE_KEY")
     youtube_key = os.environ.get("YOUTUBE_API_KEY")
     video_metadata_extractor = VideoMetadataExtractor()
-    audio_analyzer = AudioAnalyzer(gemini_key)
-    video_analyzer = VideoAnalyzer(gemini_key)
+    audio_analyzer = AudioAnalyzer(gemini_audio_key)
+    video_analyzer = VideoAnalyzer(gemini_video_key)
+
     
     
-    
-    if not ( gemini_key or youtube_key ):
+    if not ( gemini_summary_key or gemini_audio_key or gemini_video_key or gemini_judge_key or youtube_key ):
         return jsonify({"status": "error", "message": "Server missing API configurations."}), 500
 
     async def generate():
@@ -71,9 +74,9 @@ def analyze_video():
             if not video_id:
                 yield f"data: {json.dumps({'status': 'error', 'message': 'Could not fetch video ID. Please check the URL.'})}\n\n"
             
-            if video_id in memory_cache:
+            response_payload = get_from_cache(video_id)
+            if response_payload:
                 print(f"\n[CACHE HIT] ⚡ Returning from memory for video: {video_id}")
-                response_payload = memory_cache[video_id]
                 cached_data = response_payload.get("data", {})
                 
                 # 1. Transcript Payload
@@ -133,7 +136,7 @@ def analyze_video():
                     print('Transcript fetched!')
                     
                     print('Extracting claims...')
-                    claims = await asyncio.to_thread(process_transcript_claims, transcript, gemini_key)
+                    claims = await asyncio.to_thread(process_transcript_claims, transcript, gemini_summary_key)
                     if claims.get("status") == "error":
                         raise ValueError("Extraction claim failed, Gemini 2.5 API might be unavailable.")
                     print('Claims extracted!')
@@ -159,7 +162,7 @@ def analyze_video():
                     print('Passing evidence to AI Judge...')
                     final_verdicts = []
                     if claims_with_evidence:
-                        final_report_obj = await asyncio.to_thread(run_ai_judge, claims_with_evidence, gemini_key)
+                        final_report_obj = await asyncio.to_thread(run_ai_judge, claims_with_evidence, gemini_judge_key)
                         if final_report_obj:
                             final_verdicts = [verdict.model_dump() for verdict in final_report_obj.evaluations]
                             
@@ -251,7 +254,7 @@ def analyze_video():
             script_ai_prob = extraction_data.get('ai_generation_probability', 0) if not extraction_error else 0
             
             # Weighting final AI generation probability combining audio, transcript, and video
-            ai_generation_probability = (0.33 * audio_ai_generated_probability) + (0.33 * script_ai_prob) + (0.34 * video_hybrid_score)
+            ai_generation_probability = (0.3 * audio_ai_generated_probability) + (0.2 * script_ai_prob) + (0.5 * video_hybrid_score)
     
             # Yield ONLY the final score to the frontend as requested
             yield f"data: {json.dumps({'type': 'final', 'ai_generation_probability': round(ai_generation_probability, 2)})}\n\n"

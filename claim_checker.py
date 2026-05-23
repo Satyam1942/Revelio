@@ -1,4 +1,5 @@
 import os
+import time
 import json
 from google import genai
 from google.genai import types
@@ -36,7 +37,9 @@ def run_ai_judge(claims_with_evidence: list[dict], api_key: str) -> FinalReport 
     and returns a structured list of verdicts.
     """
     client = genai.Client(api_key=api_key)
-    model_id = os.environ.get("GEMINI_JUDGE_MODEL_ID", "gemini-2.5-flash")
+    
+    model_list_env = os.environ.get("GEMINI_JUDGE_MODEL_ID", "gemini-2.5-flash")
+    model_list = [m.strip(" []'\"") for m in model_list_env.split(",")]
     
     system_instruction = """
     You are a strict, objective fact-checking judge. 
@@ -60,16 +63,27 @@ def run_ai_judge(claims_with_evidence: list[dict], api_key: str) -> FinalReport 
     print("The Judge is reviewing the evidence...")
 
     try:
-        response = client.models.generate_content(
-            model=model_id,
-            contents=prompt_context,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json",
-                response_schema=FinalReport,
-                temperature=0.0,
-            ),
-        )
+        max_retries = 3
+        for attempt in range(max_retries):
+            model_id = model_list[attempt % len(model_list)]
+            try:
+                response = client.models.generate_content(
+                    model=model_id,
+                    contents=prompt_context,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=FinalReport,
+                        temperature=0.0,
+                    ),
+                )
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"Claim check API call with model '{model_id}' failed: {e}. Retrying in 10 seconds...")
+                    time.sleep(10)
+                else:
+                    raise e
         
         return FinalReport.model_validate_json(response.text)
 

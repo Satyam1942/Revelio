@@ -2,6 +2,8 @@ import urllib.parse as urlparse
 import isodate
 import yt_dlp
 import os 
+import time
+import json
 
 from dotenv import load_dotenv
 from google import genai
@@ -53,10 +55,12 @@ class AudioAnalyzer:
         if not os.path.exists(AUDIO_PATH):
             return {"error": "Audio extraction failed on server."}
         
-        client = genai.Client(api_key=self.gemini_key)
-        model_id = os.environ.get("GEMINI_AUD_MODEL_ID", "gemini-2.5-flash")
         
         try:
+            client = genai.Client(api_key=self.gemini_key)
+            model_list_env = os.environ.get("GEMINI_AUD_MODEL_ID", "gemini-3.5-flash")
+            model_list = [m.strip(" []'\"") for m in model_list_env.split(",")]
+                
             audio_file = client.files.upload(file=AUDIO_PATH)
             prompt = """
             Perform a deep analysis of this audio. 
@@ -65,17 +69,30 @@ class AudioAnalyzer:
             2. Assign a probability percentage in the 'ai_generated_probability' field.
             3. Provide a descriptive summary in 'vocal_analysis_statement' about how human or synthetic the voice sounds.
             """
-            response = client.models.generate_content(
-                model=model_id,
-                contents=[
-                    prompt,
-                    audio_file
-                ],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=AudioAnalysisResponse # Pass the Pydantic class directly
-                )
-            )
+            
+            max_retries = 3
+            for attempt in range(max_retries):
+                model_id = model_list[attempt % len(model_list)]
+                try:
+                    response = client.models.generate_content(
+                        model=model_id,
+                        contents=[
+                            prompt,
+                            audio_file
+                        ],
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=AudioAnalysisResponse # Pass the Pydantic class directly
+                        )
+                    )
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        print(f"Audio API call with model '{model_id}' failed: {e}. Retrying in 10 seconds...")
+                        time.sleep(10)
+                    else:
+                        raise e
+                        
             os.remove(AUDIO_PATH)
             return response.parsed
         

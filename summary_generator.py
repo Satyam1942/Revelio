@@ -1,4 +1,6 @@
 import os
+import time
+import json
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
@@ -27,7 +29,8 @@ def process_transcript_claims(transcript: str, api_key: str) -> Dict[str, Any]:
     into verifiable and subjective buckets.
     """
     client = genai.Client(api_key=api_key)
-    model_id = os.environ.get("GEMINI_SUMMARY_MODEL_ID")
+    model_list_env = os.environ.get("GEMINI_SUMMARY_MODEL_ID", "gemini-2.5-flash")
+    model_list = [m.strip(" []'\"") for m in model_list_env.split(",")]
     
     system_instruction = """
     You are an expert data-extraction pipeline. Read the video transcript and extract 
@@ -41,16 +44,27 @@ def process_transcript_claims(transcript: str, api_key: str) -> Dict[str, Any]:
     print("Analyzing transcript with Gemini...")
     
     try:
-        response = client.models.generate_content(
-            model=model_id,
-            contents=f"Extract all claims from this transcript:\n\n{transcript}",
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json",
-                response_schema=VideoSummary,
-                temperature=0.1, 
-            ),
-        )
+        max_retries = 3
+        for attempt in range(max_retries):
+            model_id = model_list[attempt % len(model_list)]
+            try:
+                response = client.models.generate_content(
+                    model=model_id,
+                    contents=f"Extract all claims from this transcript:\n\n{transcript}",
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=VideoSummary,
+                        temperature=0.1, 
+                    ),
+                )
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"Summary API call with model '{model_id}' failed: {e}. Retrying in 10 seconds...")
+                    time.sleep(10)
+                else:
+                    raise e
         
         structured_data = VideoSummary.model_validate_json(response.text)
 

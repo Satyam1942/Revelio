@@ -1,3 +1,4 @@
 .env
+test.txt
 video_cache.jsonl
 __pycache__/

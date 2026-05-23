@@ -3,8 +3,10 @@ import os
 import cv2
 import time
 import uuid
+import concurrent.futures
 import numpy as np
 import mediapipe as mp
+import json
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
@@ -16,6 +18,8 @@ class VideoAnalysis(BaseModel):
     physicality_check: str = Field(..., description="Reasoning on why the movement feels human or NPC-like.")
     confidence_level: float = Field(..., description="AI's confidence in this specific assessment.")
     is_animation: bool = Field(..., description="True if the video is intentional animation/CGI rather than deepfake/AI-realism.")
+    synth_id_detected: bool = Field(..., description="True if a Google SynthID or similar cryptographic AI watermark is detected in the video.")
+    metadata_ai_tags: List[str] = Field(..., description="Any AI-generation tags or software traces found in the video metadata (e.g., 'Runway', 'Sora', 'Veo').")
     
     
 class VideoAnalyzer:
@@ -146,13 +150,17 @@ class VideoAnalyzer:
             return {"error": "No frames could be extracted."}
 
         # 3. Run both Domain-Specific Algorithms
-        print("Running Biometrics & Physics Consistency checks...")
-        bio_results = self.analyze_biological(all_frames)
-        physics_results = self.analyze_physics(all_frames)
+        print("Running Biometrics & Physics Consistency checks in parallel...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            bio_future = executor.submit(self.analyze_biological, all_frames)
+            physics_future = executor.submit(self.analyze_physics, all_frames)
+            
+            bio_results = bio_future.result()
+            physics_results = physics_future.result()
         
         # Combine results into a single payload
         results = {**bio_results, **physics_results}
-        results["detected_entity"] = "Mixed (Biological & Physical)"
+        results["detected_entity"] = "Biological & Physical"
 
         # 5. Metadata Integration
         results.update({
@@ -199,39 +207,49 @@ class VideoAnalyzer:
     @staticmethod
     def calculate_hybrid_score(local_report, gemini_response: VideoAnalysis):
         """
-        Combines Local Forensic Math + Gemini Reasoning.
-        High score (100) = AI Generated
-        High score (0) = Authentic Human
+        Combines local forensic signals with Gemini's reasoning using 
+        weighted probability rather than binary penalties.
         """
-        # 1. Start with Gemini's base (converted to 0-100 authenticity)
-        base_authenticity = (gemini_response.ai_probability_score) * 100
-        
-        # 2. Local Penalties (Physicality)
-        # If pulse is flat (lifeless) or chaotic (noisy), we drop the score
-        penalty_biometric_pulse = 0
-        penalty_boiling = 0
-        penalty_morph = 0
-        
-        variance = local_report.get('biometric_pulse_variance', 0)
-        if variance < 0.05 or variance > 0.5:
-            penalty_biometric_pulse = 100  # No natural biological rhythm (either flatline or chaotic noise)
-            
-        # Physics Penalties
-        boiling_index = local_report.get('temporal_flow_stability (boiling)', 0)
-        morph_index = local_report.get('topology_stability (morphing)', 0)
-        
-        if boiling_index >= 0.5:
-            penalty_boiling = 100  # Temporal flow inconsistency (AI Shimmer/Boiling)
-        if morph_index >= 1.0:
-            penalty_morph = 100  # Impossible object shifting (Topology morphing)
-            
-        # 3. Animation Bypass
+        # 1. Weights for different signals (Adjustable)
+        WEIGHTS = {
+            'gemini': 0.70,      # Give the LLM's visual reasoning high weight
+            'boiling': 0.10,     # Temporal shimmer
+            'morphing': 0.10,    # Topology shifts
+            'biometric': 0.10     # Pulse consistency (lowest due to compression noise)
+        }
+
+        # 2. Extract Gemini's base probability (0.0 to 1.0)
+        g_score = gemini_response.ai_probability_score
+
+        # 3. Calculate Normalized Local Scores (0.0 to 1.0)
+        # Boiling: Threshold 0.5 as high AI indicator
+        boiling_val = local_report.get('temporal_flow_stability (boiling)', 0)
+        b_score = min(boiling_val / 0.8, 1.0) if boiling_val > 0.3 else 0
+
+        # Morphing: Threshold 1.0 as high AI indicator
+        morph_val = local_report.get('topology_stability (morphing)', 0)
+        m_score = min(morph_val / 1.5, 1.0) if morph_val > 0.7 else 0
+
+        # Biometric: Treat extreme stability OR extreme chaos as suspicious
+        pulse_var = local_report.get('biometric_pulse_variance', 0)
+        if pulse_var < 0.01 or pulse_var > 0.8:
+            bio_score = 0.7  # Suspicious but not definitive
+        else:
+            bio_score = 0.0
+
+        # 4. Compute Weighted Average
+        final_score = (
+            (g_score * WEIGHTS['gemini']) +
+            (b_score * WEIGHTS['boiling']) +
+            (m_score * WEIGHTS['morphing']) +
+            (bio_score * WEIGHTS['biometric'])
+        ) * 100
+
+        # 5. Animation Bypass
         if gemini_response.is_animation:
-            return base_authenticity # Intentional art isn't 'fake' in this context
+            return round(g_score * 100, 2) # Don't penalize art for physics violations
             
-        final_score = (base_authenticity + penalty_biometric_pulse + penalty_boiling + penalty_morph)/4
         return round(final_score, 2)
-    
 
     def analyze_video(self, video_url):
         unique_id = str(uuid.uuid4())
@@ -240,15 +258,17 @@ class VideoAnalyzer:
         if not video_path:
             return {"error": "Failed to download video."}
         
-        # 1. Run local mathematical/forensic scan
-        local_report = self.run_scan(video_path)
-        
-        # 2. Gemini Analysis
-        client = genai.Client(api_key=self.gemini_key)
-        model_id = os.environ.get("GEMINI_VID_MODEL_ID", "gemini-2.5-flash")
         video_file = None
         
         try:
+            # 1. Run local mathematical/forensic scan
+            local_report = self.run_scan(video_path)
+            
+            # 2. Gemini Analysis
+            client = genai.Client(api_key=self.gemini_key)
+            model_list_env = os.environ.get("GEMINI_VID_MODEL_ID", "gemini-3.5-flash")
+            model_list = [m.strip(" []'\"") for m in model_list_env.split(",")]
+                
             print("Uploading video to Gemini...")
             video_file = client.files.upload(file=video_path)
             
@@ -271,17 +291,30 @@ class VideoAnalyzer:
             {local_report}
             
             Cross-reference our local programmatic findings with your own visual and audio assessment.
+            Additionally, deeply inspect the video for any cryptographic AI watermarks (like Google SynthID) or known AI-generator tags in the file metadata.
             """
             
-            response = client.models.generate_content(
-                model=model_id,
-                contents=[prompt, video_file],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=VideoAnalysis,
-                    temperature=0.2
-                )
-            )
+            max_retries = 3
+            for attempt in range(max_retries):
+                model_id = model_list[attempt % len(model_list)]
+                try:
+                    response = client.models.generate_content(
+                        model=model_id,
+                        contents=[prompt, video_file],
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=VideoAnalysis,
+                            temperature=0.2
+                        )
+                    )
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        print(f"Video API call with model '{model_id}' failed: {e}. Retrying in 10 seconds...")
+                        time.sleep(10)
+                    else:
+                        raise e
+                        
             gemini_response = response.parsed
             
             # 3. Calculate Hybrid Score
