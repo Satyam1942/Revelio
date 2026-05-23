@@ -56,3 +56,15 @@ See the section about running tests for more information.
 
 Builds the app for production to the `build` folder.\
 It correctly bundles React in production mode and optimizes the build for the best performance.
+
+
+## Images
+<img width="1329" height="841" alt="Screenshot 2026-05-23 080030" src="https://github.com/user-attachments/assets/af0ca15e-588a-4c96-8d99-6fec3f5af05a" />
+
+---
+
+<img width="1598" height="847" alt="Screenshot 2026-05-23 080105" src="https://github.com/user-attachments/assets/3965d9c0-1c7a-43c1-9b6e-ec9d9c287dc5" />
+
+---
+<img width="1597" height="856" alt="Screenshot 2026-05-23 080122" src="https://github.com/user-attachments/assets/5e0318f7-6fe1-4d2a-a4ca-66b585f6cfd0" />
+
