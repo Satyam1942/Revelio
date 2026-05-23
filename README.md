@@ -1,10 +1,12 @@
 # Revilio - Youtube Video Fact Checker
 
-A web-based  tool designed to detect AI-generated speech and verify the factual accuracy of YouTube videos. This application cross-references video transcripts with real-time web data via the DuckDuckGo API to ensure content authenticity.
+A web-based  tool designed to detect AI-generated video, speech and verify the factual accuracy of YouTube videos. This application cross-references video transcripts with real-time web data via the DuckDuckGo API to ensure content authenticity.
 
 ## Features
 
 - **AI Speech Detection**: Identifies synthetic artifacts in audio to detect AI-generated speech.
+- **AI Video Detection**: Identifies AI generated video content by sampling continuous frames from parts of videos and applying image processing techniques.
+- **Synth ID** : Gemini API calls have been used to identify AI generated videos using SynthID verification
 - **Factual Verification**: Validates statements in video transcripts by cross-referencing them with real-time web data.
 - **High Performance**: Features a low-latency extraction system using `yt-dlp` and `FFmpeg` for efficient processing.
 - **Structured Analysis**: Supports detailed analysis of videos up to 15 minutes in length with minimal overhead.
@@ -14,13 +16,9 @@ A web-based  tool designed to detect AI-generated speech and verify the factual 
 ## Tech Stack
 
 - **Frontend**: React.js
-- **AI & Logic**: Gemini 2.5, Pydantic
-- **Media Processing**: yt-dlp, FFmpeg
+- **AI & Logic**: Gemini 3.5 flash, Gemini 3.1 flash lite, Gemini 2.5 flash, Pydantic
+- **Media Processing**: yt-dlp, FFmpeg, OpenCV, MediaPipe
 - **Data Source**: DuckDuckGo API
-
-## Getting Started
-
-This project was bootstrapped with Create React App.
 
 ### Prerequisites
 
